@@ -1,0 +1,8 @@
+# No compiled python files
+*.pyc
+
+# No ini files
+*.ini
+
+# No script outputs
+/Output/*
