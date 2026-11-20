@@ -125,7 +125,7 @@ class ZteController(object):
             else:
                 return id_info
         elif isinstance(id_info, int):
-            return str(int)+';'
+            return f'{id_info};'
         elif isinstance(id_info, list):
             return ''.join(str(i)+';' for i in id_info)
         else:
