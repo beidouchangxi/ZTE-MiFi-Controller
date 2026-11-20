@@ -10,6 +10,8 @@ except ModuleNotFoundError:
     from Utilities.log_handler import log
 
 class ZteController(object):
+    WaitRetry = 5
+    Timeout = 2
     def __init__(self, host, pw):
         self.password = pw
         self.baseurl_get = f'http://{host}/goform/goform_get_cmd_process'
@@ -27,8 +29,8 @@ class ZteController(object):
             if self._initSession():
                 break
             else:
-                log.error("No cookies fetched! Let's try again.")
-                time.sleep(1)
+                log.error(f"No cookies fetched! Let's try again after {self.WaitRetry}s.")
+                time.sleep(self.WaitRetry)
     
     def _initSession(self):
         '''
@@ -58,10 +60,11 @@ class ZteController(object):
                     self.baseurl_get,
                     headers=self.header_req,
                     params=para,
-                    timeout=2
+                    timeout=self.Timeout
                     )
             except (requests.exceptions.ConnectTimeout, requests.exceptions.ConnectionError):
-                log.warning('Connection timeout! Try again for get data!')
+                log.warning(f'Connection timeout! Try again after {self.WaitRetry}s for get data!')
+                time.sleep(self.WaitRetry)
                 continue
             else:
                 break
@@ -75,10 +78,11 @@ class ZteController(object):
                     self.baseurl_set,
                     data=data,
                     headers=self.header_req,
-                    timeout=2
+                    timeout=self.Timeout
                     )
             except (requests.exceptions.ConnectTimeout, requests.exceptions.ConnectionError):
-                log.warning('Connection timeout! Try again for post data!')
+                log.warning(f'Connection timeout! Try again after {self.WaitRetry}s for post data!')
+                time.sleep(self.WaitRetry)
                 continue
             else:
                 break
@@ -255,3 +259,11 @@ class ZteController(object):
             'AD': self.get_ad(),
             }
         return self.post(data_read_sms)
+    
+    def reboot(self):
+        data_reboot = {
+            'isTest' : False,
+            'goformId' : 'REBOOT_DEVICE',
+            'AD' : self.get_ad()
+            }
+        return self.post(data_reboot)

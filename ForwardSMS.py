@@ -2,6 +2,8 @@ import time
 
 from Utilities import controller, sms_forward_to, check_interval, log
 
+day_no = time.localtime().tm_yday
+
 while True:
     if total_unread:=controller.get_sms_unread():
         log.info('Unread SMS total: %s' % total_unread)
@@ -23,6 +25,10 @@ while True:
         id_list = [sms["id"] for sms in sms_list]
         log.info(f'Delete SMS with id list {id_list}')
         controller.delete_sms(id_list)
+    elif day_no!=(day_now:=time.localtime().tm_yday):
+        log.info(f'Reboot the device for a new day: {day_now}')
+        day_no = day_now
+        controller.reboot()
     else:
         log.info("No unread SMS from device")
     time.sleep(check_interval)
