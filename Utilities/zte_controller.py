@@ -50,56 +50,65 @@ class ZteController(object):
             return True
         else:
             return False
-    
+
     def get(self, para):
         para = dict(para)
-        para['_'] = int(time.time()*1000)
+        para['_'] = int(time.time() * 1000)
         while True:
             try:
                 response = self.session.get(
                     self.baseurl_get,
                     headers=self.header_req,
                     params=para,
-                    timeout=self.Timeout
-                    )
-            except (requests.exceptions.ConnectTimeout, requests.exceptions.ConnectionError):
-                log.warning(f'Connection timeout! Try again after {self.WaitRetry}s for get data!')
+                    timeout=self.Timeout,
+                )
+            except requests.exceptions.RequestException as exc:
+                log.warning(
+                    'GET request failed (%s). Retrying in %ss...',
+                    exc,
+                    self.WaitRetry,
+                )
                 time.sleep(self.WaitRetry)
                 continue
             else:
                 break
         return self.handleResponse(response)
-    
+
     def post(self, data):
         while True:
             try:
-                log.debug('Post data: ' + str(data))
+                log.debug('Post data: %s', data)
                 response = self.session.post(
                     self.baseurl_set,
                     data=data,
                     headers=self.header_req,
-                    timeout=self.Timeout
-                    )
-            except (requests.exceptions.ConnectTimeout, requests.exceptions.ConnectionError):
-                log.warning(f'Connection timeout! Try again after {self.WaitRetry}s for post data!')
+                    timeout=self.Timeout,
+                )
+            except requests.exceptions.RequestException as exc:
+                log.warning(
+                    'POST request failed (%s). Retrying in %ss...',
+                    exc,
+                    self.WaitRetry,
+                )
                 time.sleep(self.WaitRetry)
                 continue
             else:
                 break
         return self.handleResponse(response)
-    
+
     def handleResponse(self, response):
         if response.status_code in (200, 201, 204):
-            log.debug("Request successfully: " + response.text)
+            log.debug('Request succeeded: %s', response.text)
             try:
                 return response.json()
             except requests.exceptions.JSONDecodeError:
+                log.warning('Failed to decode JSON response: %s', response.text[:200])
                 return None
         else:
-            log.error("Request failed. Status code:", response.status_code)
+            log.error('Request failed. Status code: %s', response.status_code)
             log.error(response.text)
             return None
-    
+            
     @staticmethod
     def text2sms(text):
         return text.encode('utf_16be').hex()
