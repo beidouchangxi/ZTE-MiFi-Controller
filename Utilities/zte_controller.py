@@ -160,12 +160,20 @@ class ZteController(object):
         the API returns something like: {"sms_unread_num":"0","sms_dev_unread_num":"0","sms_sim_unread_num":"0"}
         '''
         para_sms_unread_num = {
-            'isTest' : False,
-            'cmd' : 'sms_unread_num',
-            'multi_data' : '1'
+            'isTest': False,
+            'cmd': 'sms_unread_num',
+            'multi_data': '1',
             }
-        return int(self.get(para_sms_unread_num)['sms_dev_unread_num'])
-    
+        result = self.get(para_sms_unread_num)
+        if not isinstance(result, dict):
+            log.warning('Invalid response from sms_unread_num: %s', result)
+            return 0
+        raw_count = result.get('sms_dev_unread_num', '')
+        if not str(raw_count).isdigit():
+            log.warning('Non-numeric sms_dev_unread_num: %r', raw_count)
+            return 0
+        return int(raw_count)
+        
     def get_sms_total(self):
         '''
         with valid coolie this function returns a list contains multiply dict, each one represents a SMS, keys listed bellow;
@@ -190,22 +198,22 @@ class ZteController(object):
         without valid cookie this function returns None, the raw API result is {"sms_data_total":""}
         '''
         para_sms_data_total = {
-            'isTest' : False,
-            'cmd' : 'sms_data_total',
-            'page' : 0,
-            'data_per_page' : 500,
-            'mem_store' : 1,
-            'tags' : 10,
-            'order_by' : 'order+by+id+desc'
+            'isTest': False,
+            'cmd': 'sms_data_total',
+            'page': 0,
+            'data_per_page': 500,
+            'mem_store': 1,
+            'tags': 10,
+            'order_by': 'order+by+id+desc',
             }
-        if "messages" in (result:=self.get(para_sms_data_total)):
-            sms_list = result["messages"]
+        result = self.get(para_sms_data_total)
+        if isinstance(result, dict) and 'messages' in result:
+            sms_list = result['messages']
             for sms in sms_list:
                 sms['content_decoded'] = self.sms2text(sms['content'])
             return sms_list
-        else:
-            return None
-    
+        return None
+        
     def get_ad(self):
         '''
         Something needed for post APIs, calculated with some strange things by md5
@@ -214,13 +222,19 @@ class ZteController(object):
         para_rd = {
             'isTest': False,
             'cmd': 'RD,cr_version,wa_inner_version',
-            'multi_data' : 1
+            'multi_data': 1,
             }
-        data = self.get(para_rd)
-        rd, rd0, rd1 = data['RD'], data['wa_inner_version'], data['cr_version']
-        md5 = lambda x:hashlib.md5(x.encode('ascii')).hexdigest()
-        return md5(md5(rd0+rd1)+rd)
-    
+        required_keys = ('RD', 'wa_inner_version', 'cr_version')
+        for attempt in range(1, retries + 1):
+            data = self.get(para_rd)
+            if isinstance(data, dict) and all(data.get(k) for k in required_keys):
+                rd, rd0, rd1 = data['RD'], data['wa_inner_version'], data['cr_version']
+                md5 = lambda x: hashlib.md5(x.encode('ascii')).hexdigest()
+                return md5(md5(rd0 + rd1) + rd)
+            log.warning('Failed to fetch AD token (attempt %s/%s): %s', attempt, retries, data)
+            time.sleep(self.WaitRetry)
+        raise RuntimeError('Unable to fetch valid AD token from device')
+        
     def send_sms(self, num, content):
         '''
         returns {"result":"success"} when success
@@ -271,8 +285,18 @@ class ZteController(object):
     
     def reboot(self):
         data_reboot = {
-            'isTest' : False,
-            'goformId' : 'REBOOT_DEVICE',
-            'AD' : self.get_ad()
+            'isTest': False,
+            'goformId': 'REBOOT_DEVICE',
+            'AD': self.get_ad(),
             }
-        return self.post(data_reboot)
+        result = self.post(data_reboot)
+        if not isinstance(result, dict) or result.get('result') != 'success':
+            log.warning('Reboot rejected (%s), refreshing session and retrying...', result)
+            self.initSession()
+            data_reboot['AD'] = self.get_ad()
+            result = self.post(data_reboot)
+
+        log.info('Reboot command sent (%s). Waiting %ss for device startup...', result, wait_seconds)
+        time.sleep(wait_seconds)
+        self.initSession()
+        return result
