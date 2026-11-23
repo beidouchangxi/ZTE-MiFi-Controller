@@ -214,7 +214,7 @@ class ZteController(object):
             return sms_list
         return None
         
-    def get_ad(self):
+    def get_ad(self, retries=3):
         '''
         Something needed for post APIs, calculated with some strange things by md5
         works normally without valid cookie
@@ -283,7 +283,7 @@ class ZteController(object):
             }
         return self.post(data_read_sms)
     
-    def reboot(self):
+    def reboot(self, wait_seconds=30):
         data_reboot = {
             'isTest': False,
             'goformId': 'REBOOT_DEVICE',
