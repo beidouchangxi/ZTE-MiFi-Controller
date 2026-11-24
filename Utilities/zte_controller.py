@@ -227,7 +227,11 @@ class ZteController(object):
         required_keys = ('RD', 'wa_inner_version', 'cr_version')
         for attempt in range(1, retries + 1):
             data = self.get(para_rd)
-            if isinstance(data, dict) and all(data.get(k) for k in required_keys):
+            if (
+                isinstance(data, dict)
+                and all(isinstance(data.get(k), str) for k in required_keys)
+                and data['RD']
+            ):
                 rd, rd0, rd1 = data['RD'], data['wa_inner_version'], data['cr_version']
                 md5 = lambda x: hashlib.md5(x.encode('ascii')).hexdigest()
                 return md5(md5(rd0 + rd1) + rd)
